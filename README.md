@@ -1,4 +1,4 @@
-# Track A: Dynamic Uncertainty-Aware Attribution
+Dynamic Uncertainty-Aware Attribution
 ## Hallucination Detection via Token-Level Information Gain in RAG
 
 **Course:** CS F429 Natural Language Processing — BITS Pilani Dubai — Semester 2 2025-26  
