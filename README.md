@@ -49,15 +49,15 @@ Weights and directions are derived from 500 RAGTruth train samples and frozen fo
 
 **The problem.** In RAG, a language model is given retrieved passages and asked to answer from them. A response is *faithful* if its claims are supported by the context and a *hallucination* if they are not. RAGTruth labels this at the level of spans in model-written answers, and HaluEval at the level of whole answers.
 
-**Core idea: does the context change the model's mind?** Let $P_{	ext{with}}(y_t \mid c, y_{<t})$ be the model's next-token distribution at response position *t* when the context *c* is in the prompt, and $P_{	ext{without}}(y_t \mid y_{<t})$ the same distribution with no context. Both passes score the *same* response tokens (teacher forcing). If the response is grounded in the context, the context should make the model more certain about those tokens and shift its distribution. If the response is invented, the context has little effect, so the two distributions look alike. This is close in spirit to context-aware decoding, which also contrasts predictions with and without context.
+**Core idea: does the context change the model's mind?** Let $P_{\text{with}}(y_t \mid c, y_{<t})$ be the model's next-token distribution at response position *t* when the context *c* is in the prompt, and $P_{\text{without}}(y_t \mid y_{<t})$ the same distribution with no context. Both passes score the *same* response tokens (teacher forcing). If the response is grounded in the context, the context should make the model more certain about those tokens and shift its distribution. If the response is invented, the context has little effect, so the two distributions look alike. This is close in spirit to context-aware decoding, which also contrasts predictions with and without context.
 
 **The four signals.**
 
 | Signal | Definition | Reading |
 |---|---|---|
-| Information gain (IG) | $H(P_{	ext{without}}) - H(P_{	ext{with}})$ per token, where $H$ is Shannon entropy | The context should reduce uncertainty. Low or negative IG means it did not, so risk is higher. |
-| KL divergence | $\mathrm{KL}(P_{	ext{with}} \,\|\, P_{	ext{without}})$ per token | Measures how far the context moved the distribution. Low KL means the context was ignored. |
-| Confidence drop (CD) | $\max_v P_{	ext{with}}(v)_t - \max_v P_{	ext{with}}(v)_{t+1}$ | A sudden fall in the top-token probability suggests the model is unsure at that point. High CD means higher risk. |
+| Information gain (IG) | $H(P_{\text{without}}) - H(P_{\text{with}})$ per token, where $H$ is Shannon entropy | The context should reduce uncertainty. Low or negative IG means it did not, so risk is higher. |
+| KL divergence | $\mathrm{KL}(P_{\text{with}} \,\|\, P_{\text{without}})$ per token | Measures how far the context moved the distribution. Low KL means the context was ignored. |
+| Confidence drop (CD) | $\max_v P_{\text{with}}(v)_t - \max_v P_{\text{with}}(v)_{t+1}$ | A sudden fall in the top-token probability suggests the model is unsure at that point. High CD means higher risk. |
 | Semantic entropy (SE) | Entropy over meaning-clusters of several sampled answers (Kuhn et al., 2023) | Samples that disagree in meaning, not just wording, signal uncertainty. High SE means higher risk. |
 
 IG and KL measure *attribution to the context*. CD and SE measure *the model's own uncertainty*, which is why the method is called uncertainty-aware.
@@ -67,7 +67,7 @@ IG and KL measure *attribution to the context*. CD and SE measure *the model's o
 **Why AUROC.** AUROC measures how well the score ranks hallucinated answers above faithful ones across *all* thresholds, so it does not depend on picking a cut-off. 0.5 is random ranking and 1.0 is perfect.
 
 **Implementation details worth knowing.**
-- KL is computed on the 100 highest-probability tokens of $P_{	ext{with}}$, which keeps it stable and cheap but is an approximation of full-vocabulary KL.
+- KL is computed on the 100 highest-probability tokens of $P_{\text{with}}$, which keeps it stable and cheap but is an approximation of full-vocabulary KL.
 - Semantic entropy uses only n = 3 samples at temperature 1.2, clustered by sentence-embedding similarity (cosine > 0.85, `all-MiniLM-L6-v2`), so it can only take a few values. This is one reason it contributes little.
 - Long contexts are left-truncated so that the response tokens are always kept.
 
