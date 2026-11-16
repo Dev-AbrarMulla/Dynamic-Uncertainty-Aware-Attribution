@@ -14,7 +14,9 @@ Dynamic Uncertainty-Aware Attribution
 | Sarvagya Jain | 2023A7PS0318U |
 
 ---
-A hallucination detection framework for Retrieval-Augmented Generation (RAG) systems using token-level information gain, KL divergence, confidence dynamics, and semantic entropy computed from dual-pass Mistral-7B inference.
+A hallucination detector for Retrieval-Augmented Generation (RAG) answers. It runs Mistral-7B twice, with and without the retrieved context, and checks token by token whether the context actually changed what the model expected to say. Answers that ignore their context are flagged as likely hallucinations. It combines token-level information gain, KL divergence, confidence dynamics and semantic entropy into one score, with no fine-tuning and no labelled data needed at inference time.
+
+**Keywords:** hallucination detection, retrieval-augmented generation, RAG faithfulness, uncertainty estimation, information gain, KL divergence, semantic entropy, token-level attribution, Mistral-7B, RAGTruth, HaluEval, NLP.
 
 ## Method Overview
 
@@ -43,10 +45,38 @@ Weights and directions are derived from 500 RAGTruth train samples and frozen fo
 | HaluEval zero-shot | **0.8579** | 500 |
 | SOTA gap closed | **36.6%** | — |
 
+## Background and theory
+
+**The problem.** In RAG, a language model is given retrieved passages and asked to answer from them. A response is *faithful* if its claims are supported by the context and a *hallucination* if they are not. RAGTruth labels this at the level of spans in model-written answers, and HaluEval at the level of whole answers.
+
+**Core idea: does the context change the model's mind?** Let $P_{	ext{with}}(y_t \mid c, y_{<t})$ be the model's next-token distribution at response position *t* when the context *c* is in the prompt, and $P_{	ext{without}}(y_t \mid y_{<t})$ the same distribution with no context. Both passes score the *same* response tokens (teacher forcing). If the response is grounded in the context, the context should make the model more certain about those tokens and shift its distribution. If the response is invented, the context has little effect, so the two distributions look alike. This is close in spirit to context-aware decoding, which also contrasts predictions with and without context.
+
+**The four signals.**
+
+| Signal | Definition | Reading |
+|---|---|---|
+| Information gain (IG) | $H(P_{	ext{without}}) - H(P_{	ext{with}})$ per token, where $H$ is Shannon entropy | The context should reduce uncertainty. Low or negative IG means it did not, so risk is higher. |
+| KL divergence | $\mathrm{KL}(P_{	ext{with}} \,\|\, P_{	ext{without}})$ per token | Measures how far the context moved the distribution. Low KL means the context was ignored. |
+| Confidence drop (CD) | $\max_v P_{	ext{with}}(v)_t - \max_v P_{	ext{with}}(v)_{t+1}$ | A sudden fall in the top-token probability suggests the model is unsure at that point. High CD means higher risk. |
+| Semantic entropy (SE) | Entropy over meaning-clusters of several sampled answers (Kuhn et al., 2023) | Samples that disagree in meaning, not just wording, signal uncertainty. High SE means higher risk. |
+
+IG and KL measure *attribution to the context*. CD and SE measure *the model's own uncertainty*, which is why the method is called uncertainty-aware.
+
+**From tokens to one score.** Hallucinations usually affect a few tokens (a wrong number, a made-up name), so a plain average over the whole response would dilute them. Per-token scores are therefore aggregated over the most suspicious 20% of tokens: the lowest 20% for IG and KL, the highest 20% for CD. The sample-level metrics are combined in a weighted sum. The weight and direction of each metric are set from the 500 RAGTruth training samples and then frozen, so the test sets never influence them. In `results/train_calibration.json`, IG has the largest weight (about 0.37) and the highest single-metric training AUROC (about 0.66), while semantic entropy gets the smallest weight (about 0.01).
+
+**Why AUROC.** AUROC measures how well the score ranks hallucinated answers above faithful ones across *all* thresholds, so it does not depend on picking a cut-off. 0.5 is random ranking and 1.0 is perfect.
+
+**Implementation details worth knowing.**
+- KL is computed on the 100 highest-probability tokens of $P_{	ext{with}}$, which keeps it stable and cheap but is an approximation of full-vocabulary KL.
+- Semantic entropy uses only n = 3 samples at temperature 1.2, clustered by sentence-embedding similarity (cosine > 0.85, `all-MiniLM-L6-v2`), so it can only take a few values. This is one reason it contributes little.
+- Long contexts are left-truncated so that the response tokens are always kept.
+
+**Limitations.** The signals are indirect: a response can ignore the context and still be true, or use the context and still contradict it. The base model (Mistral-7B-v0.1) is not instruction-tuned. RAGTruth AUROC of 0.67 is modest, and the HaluEval result is zero-shot with weights calibrated on RAGTruth. The verdict in `demo.py` (HIGH / MEDIUM / LOW) uses fixed heuristic cut-offs, not a calibrated probability. The method needs two forward passes plus sampling, which is slow (see compute times below).
+
 ## Repository Structure
 
 ```
-NLP-TrackA-RAG-Hallucination-Detection/
+dynamic-uncertainty-aware-attribution/
 ├── demo.py
 ├── README.md
 ├── requirements.txt
@@ -70,8 +100,8 @@ NLP-TrackA-RAG-Hallucination-Detection/
 
 ### Step 1 — Clone the Repository
 ```bash
-git clone https://github.com/Dev-AbrarMulla/NLP-TrackA-RAG-Hallucination-Detection
-cd NLP-TrackA-RAG-Hallucination-Detection
+git clone https://github.com/Dev-AbrarMulla/Dynamic-Uncertainty-Aware-Attribution
+cd Dynamic-Uncertainty-Aware-Attribution
 ```
 
 ### Step 2 — Install Dependencies
