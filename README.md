@@ -1,19 +1,6 @@
 Dynamic Uncertainty-Aware Attribution
 ## Hallucination Detection via Token-Level Information Gain in RAG
 
-**Course:** CS F429 Natural Language Processing — BITS Pilani Dubai — Semester 2 2025-26  
-**Team Number:** 2  
-**Track:** A — Dynamic Uncertainty-Aware Attribution  
-
-**Team Members:**
-| Name | ID |
-|------|----|
-| Abrar Akbar Mulla | 2023A7PS0173U |
-| Sherwin Gummadi | 2023A7PS0287U |
-| Prisha Bansal | 2023A7PS0273U |
-| Sarvagya Jain | 2023A7PS0318U |
-
----
 A hallucination detector for Retrieval-Augmented Generation (RAG) answers. It runs Mistral-7B twice, with and without the retrieved context, and checks token by token whether the context actually changed what the model expected to say. Answers that ignore their context are flagged as likely hallucinations. It combines token-level information gain, KL divergence, confidence dynamics and semantic entropy into one score, with no fine-tuning and no labelled data needed at inference time.
 
 **Keywords:** hallucination detection, retrieval-augmented generation, RAG faithfulness, uncertainty estimation, information gain, KL divergence, semantic entropy, token-level attribution, Mistral-7B, RAGTruth, HaluEval, NLP.
